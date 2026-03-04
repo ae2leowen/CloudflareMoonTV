@@ -1,10 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
+
+import { logger } from '@/lib/logger';
 
 export const runtime = 'edge';
 
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('更新站点配置失败:', error);
+    logger.error('api', '更新站点配置失败:', error);
     return NextResponse.json(
       {
         error: '更新站点配置失败',

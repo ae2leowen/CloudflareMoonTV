@@ -1,8 +1,10 @@
-/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { createClient, RedisClientType } from 'redis';
 
 import { AdminConfig } from './admin.types';
+import { logger } from './logger';
+import { hashPassword, verifyPassword } from './password';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -35,10 +37,11 @@ async function withRetry<T>(
         err.code === 'EPIPE';
 
       if (isConnectionError && !isLastAttempt) {
-        console.log(
-          `Redis operation failed, retrying... (${i + 1}/${maxRetries})`
+        logger.warn(
+          'redis',
+          `Operation failed, retrying... (${i + 1}/${maxRetries})`,
+          err.message
         );
-        console.error('Error:', err.message);
 
         // 等待一段时间后重试
         await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
@@ -50,7 +53,7 @@ async function withRetry<T>(
             await client.connect();
           }
         } catch (reconnectErr) {
-          console.error('Failed to reconnect:', reconnectErr);
+          logger.error('redis', 'Failed to reconnect', reconnectErr);
         }
 
         continue;
@@ -168,8 +171,8 @@ export class RedisStorage implements IStorage {
   }
 
   async registerUser(userName: string, password: string): Promise<void> {
-    // 简单存储明文密码，生产环境应加密
-    await withRetry(() => this.client.set(this.userPwdKey(userName), password));
+    const hashed = await hashPassword(password);
+    await withRetry(() => this.client.set(this.userPwdKey(userName), hashed));
   }
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
@@ -177,8 +180,7 @@ export class RedisStorage implements IStorage {
       this.client.get(this.userPwdKey(userName))
     );
     if (stored === null) return false;
-    // 确保比较时都是字符串类型
-    return ensureString(stored) === password;
+    return verifyPassword(password, ensureString(stored));
   }
 
   // 检查用户是否存在
@@ -192,9 +194,9 @@ export class RedisStorage implements IStorage {
 
   // 修改用户密码
   async changePassword(userName: string, newPassword: string): Promise<void> {
-    // 简单存储明文密码，生产环境应加密
+    const hashed = await hashPassword(newPassword);
     await withRetry(() =>
-      this.client.set(this.userPwdKey(userName), newPassword)
+      this.client.set(this.userPwdKey(userName), hashed)
     );
   }
 
@@ -381,9 +383,9 @@ function getRedisClient(): RedisClientType {
       socket: {
         // 重连策略：指数退避，最大30秒
         reconnectStrategy: (retries: number) => {
-          console.log(`Redis reconnection attempt ${retries + 1}`);
+          logger.info('redis', `Reconnection attempt ${retries + 1}`);
           if (retries > 10) {
-            console.error('Redis max reconnection attempts exceeded');
+            logger.error('redis', 'Max reconnection attempts exceeded');
             return false; // 停止重连
           }
           return Math.min(1000 * Math.pow(2, retries), 30000); // 指数退避，最大30秒
@@ -398,29 +400,28 @@ function getRedisClient(): RedisClientType {
 
     // 添加错误事件监听
     client.on('error', (err) => {
-      console.error('Redis client error:', err);
+      logger.error('redis', 'Client error', err);
     });
 
     client.on('connect', () => {
-      console.log('Redis connected');
+      logger.info('redis', 'Connected');
     });
 
     client.on('reconnecting', () => {
-      console.log('Redis reconnecting...');
+      logger.info('redis', 'Reconnecting...');
     });
 
     client.on('ready', () => {
-      console.log('Redis ready');
+      logger.info('redis', 'Ready');
     });
 
     // 初始连接，带重试机制
     const connectWithRetry = async () => {
       try {
         await client!.connect();
-        console.log('Redis connected successfully');
+        logger.info('redis', 'Connected successfully');
       } catch (err) {
-        console.error('Redis initial connection failed:', err);
-        console.log('Will retry in 5 seconds...');
+        logger.error('redis', 'Initial connection failed, retrying in 5s', err);
         setTimeout(connectWithRetry, 5000);
       }
     };

@@ -2,6 +2,24 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
+/**
+ * Allowed image host domains to prevent SSRF attacks.
+ * Only requests targeting these domains are proxied.
+ */
+const ALLOWED_IMAGE_DOMAINS = [
+  'img1.doubanio.com',
+  'img2.doubanio.com',
+  'img3.doubanio.com',
+  'img9.doubanio.com',
+  'img.doubanio.com',
+  'movie.douban.com',
+  'pic.nf.migu.cn',
+  'gips0.baidu.com',
+  'gips1.baidu.com',
+  'gips2.baidu.com',
+  'gips3.baidu.com',
+];
+
 // OrionTV 兼容接口
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -9,6 +27,25 @@ export async function GET(request: Request) {
 
   if (!imageUrl) {
     return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });
+  }
+
+  // SSRF protection: validate URL and restrict to allowed domains
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 });
+  }
+
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return NextResponse.json({ error: 'Invalid image URL protocol' }, { status: 400 });
+  }
+
+  if (!ALLOWED_IMAGE_DOMAINS.includes(parsedUrl.hostname)) {
+    return NextResponse.json(
+      { error: 'Image domain not allowed' },
+      { status: 403 }
+    );
   }
 
   try {

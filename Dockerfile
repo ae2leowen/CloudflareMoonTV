@@ -22,14 +22,11 @@ COPY --from=deps /app/node_modules ./node_modules
 # 复制全部源代码
 COPY . .
 
-# 在构建阶段也显式设置 DOCKER_ENV，
-# 确保 Next.js 在编译时即选择 Node Runtime 而不是 Edge Runtime
-RUN find ./src -type f -name "route.ts" -print0 \
-  | xargs -0 sed -i "s/export const runtime = 'edge';/export const runtime = 'nodejs';/g"
+# Switch all API route runtimes from 'edge' to 'nodejs' for Docker compatibility.
+# Uses scripts/switch-runtime.js instead of fragile sed commands.
 ENV DOCKER_ENV=true
-
-# For Docker builds, force dynamic rendering to read runtime environment variables.
-RUN sed -i "/const inter = Inter({ subsets: \['latin'] });/a export const dynamic = 'force-dynamic';" src/app/layout.tsx
+RUN node scripts/switch-runtime.js --runtime=nodejs
+# Note: 'export const dynamic = force-dynamic' is already set in src/app/layout.tsx
 
 # 生成生产构建
 RUN pnpm run build

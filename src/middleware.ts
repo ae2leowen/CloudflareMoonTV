@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -27,36 +25,36 @@ export async function middleware(request: NextRequest) {
     return handleAuthFailure(request, pathname);
   }
 
-  // localstorage模式：在middleware中完成验证
-  if (storageType === 'localstorage') {
-    if (!authInfo.password || authInfo.password !== process.env.PASSWORD) {
-      return handleAuthFailure(request, pathname);
-    }
-    return NextResponse.next();
-  }
-
-  // 其他模式：只验证签名
-  // 检查是否有用户名（非localStorage模式下密码不存储在cookie中）
-  if (!authInfo.username || !authInfo.signature) {
+  if (!authInfo.signature || !authInfo.timestamp) {
     return handleAuthFailure(request, pathname);
   }
 
-  // 验证签名（如果存在）
-  if (authInfo.signature) {
-    const isValidSignature = await verifySignature(
-      authInfo.username,
-      authInfo.signature,
-      process.env.PASSWORD || ''
-    );
+  const signingKey = process.env.PASSWORD || '';
 
-    // 签名验证通过即可
-    if (isValidSignature) {
-      return NextResponse.next();
-    }
+  if (storageType === 'localstorage') {
+    // localstorage 模式：验证 HMAC(timestamp, PASSWORD)
+    const isValid = await verifySignature(
+      String(authInfo.timestamp),
+      authInfo.signature,
+      signingKey
+    );
+    if (!isValid) return handleAuthFailure(request, pathname);
+    return NextResponse.next();
   }
 
-  // 签名验证失败或不存在签名
-  return handleAuthFailure(request, pathname);
+  // DB 模式：验证 HMAC(username, PASSWORD)
+  if (!authInfo.username) {
+    return handleAuthFailure(request, pathname);
+  }
+
+  const isValidSignature = await verifySignature(
+    authInfo.username,
+    authInfo.signature,
+    signingKey
+  );
+
+  if (!isValidSignature) return handleAuthFailure(request, pathname);
+  return NextResponse.next();
 }
 
 // 验证签名
@@ -91,8 +89,7 @@ async function verifySignature(
       signatureBuffer,
       messageData
     );
-  } catch (error) {
-    console.error('签名验证失败:', error);
+  } catch {
     return false;
   }
 }

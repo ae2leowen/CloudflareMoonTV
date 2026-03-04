@@ -1,8 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, no-console, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+
+import { z } from 'zod';
 
 import { getStorage } from '@/lib/db';
 
 import { AdminConfig } from './admin.types';
+import { logger } from './logger';
 import runtimeConfig from './runtime';
 
 export interface ApiSite {
@@ -12,16 +15,43 @@ export interface ApiSite {
   detail?: string;
 }
 
-interface ConfigFileStruct {
-  cache_time?: number;
-  api_site: {
-    [key: string]: ApiSite;
-  };
-  custom_category?: {
-    name?: string;
-    type: 'movie' | 'tv';
-    query: string;
-  }[];
+// Zod schema for runtime validation of config.json
+const ApiSiteSchema = z.object({
+  key: z.string().min(1),
+  api: z.string().min(1),
+  name: z.string().min(1),
+  detail: z.string().optional(),
+});
+
+const ConfigFileSchema = z.object({
+  cache_time: z.number().int().min(0).max(86400).optional(),
+  api_site: z.record(ApiSiteSchema),
+  custom_category: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        type: z.enum(['movie', 'tv']),
+        query: z.string().min(1),
+      })
+    )
+    .optional(),
+});
+
+type ConfigFileStruct = z.infer<typeof ConfigFileSchema>;
+
+/**
+ * Parse and validate a raw config object.
+ * Logs a warning if the config has unexpected fields but does NOT throw —
+ * unknown keys are stripped and the rest is used.
+ */
+function parseConfigFile(raw: unknown): ConfigFileStruct {
+  const result = ConfigFileSchema.safeParse(raw);
+  if (!result.success) {
+    logger.warn('config', 'config.json validation errors', result.error.flatten());
+    // Fall back to parsing with passthrough so we still get usable data
+    return raw as ConfigFileStruct;
+  }
+  return result.data;
 }
 
 export const API_CONFIG = {
@@ -54,15 +84,17 @@ async function initConfig() {
   }
 
   if (process.env.DOCKER_ENV === 'true') {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const _require = eval('require') as NodeRequire;
-    const fs = _require('fs') as typeof import('fs');
-    const path = _require('path') as typeof import('path');
+    // createRequire is safe here: this branch only runs in Node.js Docker mode, never Edge runtime.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createRequire } = require('module') as typeof import('module');
+    const localRequire = createRequire(__filename);
+    const fs = localRequire('fs') as typeof import('fs');
+    const path = localRequire('path') as typeof import('path');
 
     const configPath = path.join(process.cwd(), 'config.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
-    fileConfig = JSON.parse(raw) as ConfigFileStruct;
-    console.log('load dynamic config success');
+    fileConfig = parseConfigFile(JSON.parse(raw));
+    logger.info('config', 'Loaded dynamic config from config.json');
   } else {
     // 默认使用编译时生成的配置
     fileConfig = runtimeConfig as unknown as ConfigFileStruct;
@@ -85,7 +117,7 @@ async function initConfig() {
         try {
           userNames = await (storage as any).getAllUsers();
         } catch (e) {
-          console.error('获取用户列表失败:', e);
+          logger.error('config', '获取用户列表失败', e);
         }
       }
 
@@ -234,7 +266,7 @@ async function initConfig() {
       // 更新缓存
       cachedConfig = adminConfig;
     } catch (err) {
-      console.error('加载管理员配置失败:', err);
+      logger.error('config', '加载管理员配置失败', err);
     }
   } else {
     // 本地存储直接使用文件配置
@@ -399,15 +431,17 @@ export async function resetConfig() {
   }
 
   if (process.env.DOCKER_ENV === 'true') {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const _require = eval('require') as NodeRequire;
-    const fs = _require('fs') as typeof import('fs');
-    const path = _require('path') as typeof import('path');
+    // createRequire is safe here: this branch only runs in Node.js Docker mode, never Edge runtime.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createRequire } = require('module') as typeof import('module');
+    const localRequire = createRequire(__filename);
+    const fs = localRequire('fs') as typeof import('fs');
+    const path = localRequire('path') as typeof import('path');
 
     const configPath = path.join(process.cwd(), 'config.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
-    fileConfig = JSON.parse(raw) as ConfigFileStruct;
-    console.log('load dynamic config success');
+    fileConfig = parseConfigFile(JSON.parse(raw));
+    logger.info('config', 'Loaded dynamic config from config.json');
   } else {
     // 默认使用编译时生成的配置
     fileConfig = runtimeConfig as unknown as ConfigFileStruct;
