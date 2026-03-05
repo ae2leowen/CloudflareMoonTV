@@ -1,10 +1,11 @@
-/* eslint-disable no-console */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { Favorite } from '@/lib/types';
+
+import { logger } from '@/lib/logger';
 
 export const runtime = 'edge';
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
     const favorites = await db.getAllFavorites(authInfo.username);
     return NextResponse.json(favorites, { status: 200 });
   } catch (err) {
-    console.error('获取收藏失败', err);
+    logger.error('api', '获取收藏失败', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error('保存收藏失败', err);
+    logger.error('api', '保存收藏失败', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -147,7 +148,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error('删除收藏失败', err);
+    logger.error('api', '删除收藏失败', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

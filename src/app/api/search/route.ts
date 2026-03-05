@@ -29,7 +29,14 @@ export async function GET(request: Request) {
   const searchPromises = apiSites.map((site) => searchFromApi(site, query));
 
   try {
-    const results = await Promise.all(searchPromises);
+    // Use allSettled so a single failing source doesn't abort results from all others
+    const settled = await Promise.allSettled(searchPromises);
+    const results = settled
+      .filter(
+        (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof searchFromApi>>> =>
+          r.status === 'fulfilled'
+      )
+      .map((r) => r.value);
     let flattenedResults = results.flat();
     if (!config.SiteConfig.DisableYellowFilter) {
       flattenedResults = flattenedResults.filter((result) => {

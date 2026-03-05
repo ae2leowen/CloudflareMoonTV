@@ -1,6 +1,8 @@
-/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { AdminConfig } from './admin.types';
+import { logger } from './logger';
+import { hashPassword, verifyPassword } from './password';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -79,7 +81,7 @@ export class D1Storage implements IStorage {
         search_title: result.search_title || undefined,
       };
     } catch (err) {
-      console.error('Failed to get play record:', err);
+      logger.error('d1', 'Failed to get play record:', err);
       throw err;
     }
   }
@@ -115,7 +117,7 @@ export class D1Storage implements IStorage {
         )
         .run();
     } catch (err) {
-      console.error('Failed to set play record:', err);
+      logger.error('d1', 'Failed to set play record:', err);
       throw err;
     }
   }
@@ -151,7 +153,7 @@ export class D1Storage implements IStorage {
 
       return records;
     } catch (err) {
-      console.error('Failed to get all play records:', err);
+      logger.error('d1', 'Failed to get all play records:', err);
       throw err;
     }
   }
@@ -164,7 +166,7 @@ export class D1Storage implements IStorage {
         .bind(userName, key)
         .run();
     } catch (err) {
-      console.error('Failed to delete play record:', err);
+      logger.error('d1', 'Failed to delete play record:', err);
       throw err;
     }
   }
@@ -190,7 +192,7 @@ export class D1Storage implements IStorage {
         search_title: result.search_title,
       };
     } catch (err) {
-      console.error('Failed to get favorite:', err);
+      logger.error('d1', 'Failed to get favorite:', err);
       throw err;
     }
   }
@@ -222,7 +224,7 @@ export class D1Storage implements IStorage {
         )
         .run();
     } catch (err) {
-      console.error('Failed to set favorite:', err);
+      logger.error('d1', 'Failed to set favorite:', err);
       throw err;
     }
   }
@@ -253,7 +255,7 @@ export class D1Storage implements IStorage {
 
       return favorites;
     } catch (err) {
-      console.error('Failed to get all favorites:', err);
+      logger.error('d1', 'Failed to get all favorites:', err);
       throw err;
     }
   }
@@ -266,7 +268,7 @@ export class D1Storage implements IStorage {
         .bind(userName, key)
         .run();
     } catch (err) {
-      console.error('Failed to delete favorite:', err);
+      logger.error('d1', 'Failed to delete favorite:', err);
       throw err;
     }
   }
@@ -274,13 +276,14 @@ export class D1Storage implements IStorage {
   // 用户相关
   async registerUser(userName: string, password: string): Promise<void> {
     try {
+      const hashed = await hashPassword(password);
       const db = await this.getDatabase();
       await db
         .prepare('INSERT INTO users (username, password) VALUES (?, ?)')
-        .bind(userName, password)
+        .bind(userName, hashed)
         .run();
     } catch (err) {
-      console.error('Failed to register user:', err);
+      logger.error('d1', 'Failed to register user', err);
       throw err;
     }
   }
@@ -293,9 +296,10 @@ export class D1Storage implements IStorage {
         .bind(userName)
         .first<{ password: string }>();
 
-      return result?.password === password;
+      if (!result) return false;
+      return verifyPassword(password, result.password);
     } catch (err) {
-      console.error('Failed to verify user:', err);
+      logger.error('d1', 'Failed to verify user', err);
       throw err;
     }
   }
@@ -310,20 +314,21 @@ export class D1Storage implements IStorage {
 
       return result !== null;
     } catch (err) {
-      console.error('Failed to check user existence:', err);
+      logger.error('d1', 'Failed to check user existence:', err);
       throw err;
     }
   }
 
   async changePassword(userName: string, newPassword: string): Promise<void> {
     try {
+      const hashed = await hashPassword(newPassword);
       const db = await this.getDatabase();
       await db
         .prepare('UPDATE users SET password = ? WHERE username = ?')
-        .bind(newPassword, userName)
+        .bind(hashed, userName)
         .run();
     } catch (err) {
-      console.error('Failed to change password:', err);
+      logger.error('d1', 'Failed to change password', err);
       throw err;
     }
   }
@@ -347,7 +352,7 @@ export class D1Storage implements IStorage {
 
       await db.batch(statements);
     } catch (err) {
-      console.error('Failed to delete user:', err);
+      logger.error('d1', 'Failed to delete user:', err);
       throw err;
     }
   }
@@ -365,7 +370,7 @@ export class D1Storage implements IStorage {
 
       return result.results.map((row) => row.keyword);
     } catch (err) {
-      console.error('Failed to get search history:', err);
+      logger.error('d1', 'Failed to get search history:', err);
       throw err;
     }
   }
@@ -403,7 +408,7 @@ export class D1Storage implements IStorage {
         .bind(userName, userName, SEARCH_HISTORY_LIMIT)
         .run();
     } catch (err) {
-      console.error('Failed to add search history:', err);
+      logger.error('d1', 'Failed to add search history:', err);
       throw err;
     }
   }
@@ -425,7 +430,7 @@ export class D1Storage implements IStorage {
           .run();
       }
     } catch (err) {
-      console.error('Failed to delete search history:', err);
+      logger.error('d1', 'Failed to delete search history:', err);
       throw err;
     }
   }
@@ -440,7 +445,7 @@ export class D1Storage implements IStorage {
 
       return result.results.map((row) => row.username);
     } catch (err) {
-      console.error('Failed to get all users:', err);
+      logger.error('d1', 'Failed to get all users:', err);
       throw err;
     }
   }
@@ -457,7 +462,7 @@ export class D1Storage implements IStorage {
 
       return JSON.parse(result.config) as AdminConfig;
     } catch (err) {
-      console.error('Failed to get admin config:', err);
+      logger.error('d1', 'Failed to get admin config:', err);
       throw err;
     }
   }
@@ -472,7 +477,7 @@ export class D1Storage implements IStorage {
         .bind(JSON.stringify(config))
         .run();
     } catch (err) {
-      console.error('Failed to set admin config:', err);
+      logger.error('d1', 'Failed to set admin config:', err);
       throw err;
     }
   }
@@ -500,7 +505,7 @@ export class D1Storage implements IStorage {
         outro_time: result.outro_time,
       };
     } catch (err) {
-      console.error('Failed to get skip config:', err);
+      logger.error('d1', 'Failed to get skip config:', err);
       throw err;
     }
   }
@@ -531,7 +536,7 @@ export class D1Storage implements IStorage {
         )
         .run();
     } catch (err) {
-      console.error('Failed to set skip config:', err);
+      logger.error('d1', 'Failed to set skip config:', err);
       throw err;
     }
   }
@@ -550,7 +555,7 @@ export class D1Storage implements IStorage {
         .bind(userName, source, id)
         .run();
     } catch (err) {
-      console.error('Failed to delete skip config:', err);
+      logger.error('d1', 'Failed to delete skip config:', err);
       throw err;
     }
   }
@@ -580,7 +585,7 @@ export class D1Storage implements IStorage {
 
       return configs;
     } catch (err) {
-      console.error('Failed to get all skip configs:', err);
+      logger.error('d1', 'Failed to get all skip configs:', err);
       throw err;
     }
   }

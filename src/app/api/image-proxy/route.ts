@@ -2,6 +2,47 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
+/**
+ * SSRF protection: block requests to private/internal IP ranges and
+ * non-HTTP(S) protocols. All external HTTPS/HTTP image URLs are allowed
+ * so that video source cover images from any CDN can be proxied.
+ *
+ * Blocked ranges:
+ *   - Loopback:          127.0.0.0/8, ::1
+ *   - Private (RFC1918): 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+ *   - Link-local:        169.254.0.0/16, fe80::/10
+ *   - Metadata services: 100.64.0.0/10 (AWS/GCP instance metadata)
+ */
+function isPrivateHost(hostname: string): boolean {
+  // Reject IP literals in private/loopback ranges
+  const ipv4 = hostname.match(
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+  );
+  if (ipv4) {
+    const [, a, b, c] = ipv4.map(Number);
+    if (
+      a === 127 || // loopback
+      a === 10 || // RFC1918
+      (a === 172 && b >= 16 && b <= 31) || // RFC1918
+      (a === 192 && b === 168) || // RFC1918
+      (a === 169 && b === 254) || // link-local
+      (a === 100 && b >= 64 && b <= 127) // shared address (metadata)
+    ) {
+      return true;
+    }
+  }
+  // Reject localhost and common internal hostnames
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname === '::1'
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // OrionTV 兼容接口
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -9,6 +50,24 @@ export async function GET(request: Request) {
 
   if (!imageUrl) {
     return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });
+  }
+
+  // Validate URL structure
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 });
+  }
+
+  // Only allow HTTP(S)
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return NextResponse.json({ error: 'Invalid image URL protocol' }, { status: 400 });
+  }
+
+  // Block internal/private network access (SSRF protection)
+  if (isPrivateHost(parsedUrl.hostname)) {
+    return NextResponse.json({ error: 'Image host not allowed' }, { status: 403 });
   }
 
   try {

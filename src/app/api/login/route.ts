@@ -1,8 +1,9 @@
-/* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+
+import { logger } from '@/lib/logger';
 
 export const runtime = 'edge';
 
@@ -43,25 +44,27 @@ async function generateSignature(
 }
 
 // 生成认证Cookie（带签名）
+// 不再在 cookie 中存储明文密码，统一使用 HMAC 签名进行验证
 async function generateAuthCookie(
   username?: string,
   password?: string,
-  role?: 'owner' | 'admin' | 'user',
-  includePassword = false
+  role?: 'owner' | 'admin' | 'user'
 ): Promise<string> {
   const authData: any = { role: role || 'user' };
+  const timestamp = Date.now();
+  authData.timestamp = timestamp;
 
-  // 只在需要时包含 password
-  if (includePassword && password) {
-    authData.password = password;
-  }
+  const signingKey = process.env.PASSWORD || '';
 
-  if (username && process.env.PASSWORD) {
+  if (username) {
+    // DB 模式：对用户名签名
     authData.username = username;
-    // 使用密码作为密钥对用户名进行签名
-    const signature = await generateSignature(username, process.env.PASSWORD);
+    const signature = await generateSignature(username, signingKey);
     authData.signature = signature;
-    authData.timestamp = Date.now(); // 添加时间戳防重放攻击
+  } else if (password) {
+    // localstorage 模式：对时间戳签名，不存储明文密码
+    const signature = await generateSignature(timestamp.toString(), password);
+    authData.signature = signature;
   }
 
   return encodeURIComponent(JSON.stringify(authData));
@@ -103,12 +106,7 @@ export async function POST(req: NextRequest) {
 
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
-      const cookieValue = await generateAuthCookie(
-        undefined,
-        password,
-        'user',
-        true
-      ); // localstorage 模式包含 password
+      const cookieValue = await generateAuthCookie(undefined, password, 'user');
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
 
@@ -140,12 +138,7 @@ export async function POST(req: NextRequest) {
     ) {
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
-      const cookieValue = await generateAuthCookie(
-        username,
-        password,
-        'owner',
-        false
-      ); // 数据库模式不包含 password
+      const cookieValue = await generateAuthCookie(username, password, 'owner');
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
 
@@ -183,9 +176,8 @@ export async function POST(req: NextRequest) {
       const cookieValue = await generateAuthCookie(
         username,
         password,
-        user?.role || 'user',
-        false
-      ); // 数据库模式不包含 password
+        user?.role || 'user'
+      );
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
 
@@ -199,11 +191,11 @@ export async function POST(req: NextRequest) {
 
       return response;
     } catch (err) {
-      console.error('数据库验证失败', err);
+      logger.error('api', '数据库验证失败', err);
       return NextResponse.json({ error: '数据库错误' }, { status: 500 });
     }
   } catch (error) {
-    console.error('登录接口异常', error);
+    logger.error('api', '登录接口异常', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

@@ -15,6 +15,10 @@ import { ThemeProvider } from '../components/ThemeProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
+// Force dynamic rendering so runtime environment variables are always read.
+// Required for Docker deployments and any env-var-driven configuration.
+export const dynamic = 'force-dynamic';
+
 // 动态生成 metadata，支持配置更新后的标题变化
 export async function generateMetadata(): Promise<Metadata> {
   let siteName = process.env.SITE_NAME || 'MoonTV';
