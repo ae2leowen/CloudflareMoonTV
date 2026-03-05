@@ -84,12 +84,14 @@ async function initConfig() {
   }
 
   if (process.env.DOCKER_ENV === 'true') {
-    // createRequire is safe here: this branch only runs in Node.js Docker mode, never Edge runtime.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createRequire } = require('module') as typeof import('module');
-    const localRequire = createRequire(__filename);
-    const fs = localRequire('fs') as typeof import('fs');
-    const path = localRequire('path') as typeof import('path');
+    // eval() is used intentionally to bypass webpack's static analysis.
+    // This branch only executes in Node.js Docker mode (never in edge/browser bundles).
+    // Using require('module') or import('module') would cause webpack to fail
+    // when building edge-runtime route bundles that import this file.
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const _require = eval('require') as NodeRequire;
+    const fs = _require('fs') as typeof import('fs');
+    const path = _require('path') as typeof import('path');
 
     const configPath = path.join(process.cwd(), 'config.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
@@ -431,12 +433,14 @@ export async function resetConfig() {
   }
 
   if (process.env.DOCKER_ENV === 'true') {
-    // createRequire is safe here: this branch only runs in Node.js Docker mode, never Edge runtime.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createRequire } = require('module') as typeof import('module');
-    const localRequire = createRequire(__filename);
-    const fs = localRequire('fs') as typeof import('fs');
-    const path = localRequire('path') as typeof import('path');
+    // eval() is used intentionally to bypass webpack's static analysis.
+    // This branch only executes in Node.js Docker mode (never in edge/browser bundles).
+    // Using require('module') or import('module') would cause webpack to fail
+    // when building edge-runtime route bundles that import this file.
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const _require = eval('require') as NodeRequire;
+    const fs = _require('fs') as typeof import('fs');
+    const path = _require('path') as typeof import('path');
 
     const configPath = path.join(process.cwd(), 'config.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
