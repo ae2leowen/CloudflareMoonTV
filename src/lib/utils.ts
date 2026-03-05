@@ -3,29 +3,43 @@
 import Hls from 'hls.js';
 
 /**
- * 获取图片代理 URL 设置
+ * 内置图片代理的默认路径。
+ * 用于解决两类问题：
+ * 1. 混合内容（Mixed Content）：视频源图片多为 http:// 地址，部署在 HTTPS 时被浏览器阻止
+ * 2. 防盗链：豆瓣等图片 CDN 在浏览器直连时返回 403
+ * 通过服务端代理统一加上正确的 Referer / User-Agent 请求头后转发。
+ */
+const BUILTIN_IMAGE_PROXY = '/api/image-proxy?url=';
+
+/**
+ * 获取图片代理 URL 设置。
+ * 优先级：用户本地设置 > 服务端环境变量 > 内置代理（默认）
  */
 export function getImageProxyUrl(): string | null {
   if (typeof window === 'undefined') return null;
 
-  // 本地未开启图片代理，则不使用代理
+  // 用户在设置中明确关闭了图片代理
   const enableImageProxy = localStorage.getItem('enableImageProxy');
   if (enableImageProxy !== null) {
-    if (!JSON.parse(enableImageProxy) as boolean) {
+    if (!(JSON.parse(enableImageProxy) as boolean)) {
       return null;
     }
   }
 
+  // 用户在设置中配置了自定义代理地址
   const localImageProxy = localStorage.getItem('imageProxyUrl');
   if (localImageProxy != null) {
     return localImageProxy.trim() ? localImageProxy.trim() : null;
   }
 
-  // 如果未设置，则使用全局对象
+  // 服务端通过环境变量配置的代理地址
   const serverImageProxy = (window as any).RUNTIME_CONFIG?.IMAGE_PROXY;
-  return serverImageProxy && serverImageProxy.trim()
-    ? serverImageProxy.trim()
-    : null;
+  if (serverImageProxy && serverImageProxy.trim()) {
+    return serverImageProxy.trim();
+  }
+
+  // 默认使用内置代理，解决混合内容和防盗链问题
+  return BUILTIN_IMAGE_PROXY;
 }
 
 /**
