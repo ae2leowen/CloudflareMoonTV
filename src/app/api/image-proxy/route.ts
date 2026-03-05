@@ -3,22 +3,45 @@ import { NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 /**
- * Allowed image host domains to prevent SSRF attacks.
- * Only requests targeting these domains are proxied.
+ * SSRF protection: block requests to private/internal IP ranges and
+ * non-HTTP(S) protocols. All external HTTPS/HTTP image URLs are allowed
+ * so that video source cover images from any CDN can be proxied.
+ *
+ * Blocked ranges:
+ *   - Loopback:          127.0.0.0/8, ::1
+ *   - Private (RFC1918): 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+ *   - Link-local:        169.254.0.0/16, fe80::/10
+ *   - Metadata services: 100.64.0.0/10 (AWS/GCP instance metadata)
  */
-const ALLOWED_IMAGE_DOMAINS = [
-  'img1.doubanio.com',
-  'img2.doubanio.com',
-  'img3.doubanio.com',
-  'img9.doubanio.com',
-  'img.doubanio.com',
-  'movie.douban.com',
-  'pic.nf.migu.cn',
-  'gips0.baidu.com',
-  'gips1.baidu.com',
-  'gips2.baidu.com',
-  'gips3.baidu.com',
-];
+function isPrivateHost(hostname: string): boolean {
+  // Reject IP literals in private/loopback ranges
+  const ipv4 = hostname.match(
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+  );
+  if (ipv4) {
+    const [, a, b, c] = ipv4.map(Number);
+    if (
+      a === 127 || // loopback
+      a === 10 || // RFC1918
+      (a === 172 && b >= 16 && b <= 31) || // RFC1918
+      (a === 192 && b === 168) || // RFC1918
+      (a === 169 && b === 254) || // link-local
+      (a === 100 && b >= 64 && b <= 127) // shared address (metadata)
+    ) {
+      return true;
+    }
+  }
+  // Reject localhost and common internal hostnames
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname === '::1'
+  ) {
+    return true;
+  }
+  return false;
+}
 
 // OrionTV 兼容接口
 export async function GET(request: Request) {
@@ -29,7 +52,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });
   }
 
-  // SSRF protection: validate URL and restrict to allowed domains
+  // Validate URL structure
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(imageUrl);
@@ -37,15 +60,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 });
   }
 
+  // Only allow HTTP(S)
   if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
     return NextResponse.json({ error: 'Invalid image URL protocol' }, { status: 400 });
   }
 
-  if (!ALLOWED_IMAGE_DOMAINS.includes(parsedUrl.hostname)) {
-    return NextResponse.json(
-      { error: 'Image domain not allowed' },
-      { status: 403 }
-    );
+  // Block internal/private network access (SSRF protection)
+  if (isPrivateHost(parsedUrl.hostname)) {
+    return NextResponse.json({ error: 'Image host not allowed' }, { status: 403 });
   }
 
   try {
