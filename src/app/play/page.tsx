@@ -1273,35 +1273,14 @@ function PlayPageClient() {
               video.hls.destroy();
             }
             const hls = new Hls({
-              debug: false,
-              enableWorker: true,
-              lowLatencyMode: false,
+              debug: false, // 关闭日志
+              enableWorker: true, // WebWorker 解码，降低主线程压力
+              lowLatencyMode: true, // 开启低延迟 LL-HLS
 
-              /* 缓冲优化：增大缓冲区避免卡顿 */
-              maxBufferLength: 120, // 前向缓冲最大120秒，确保流畅播放
-              backBufferLength: 60, // 保留60秒已播放内容用于拖拽
-              maxBufferSize: 256 * 1000 * 1000, // 增大到256MB缓冲
-              maxMaxBufferLength: 200, // 最大允许的缓冲长度
-
-              /* 分片加载优化 */
-              startLevel: -1, // 自动选择最佳起始质量
-              maxLevel: -1, // 允许最高质量
-              minLevel: 0, // 允许最低质量
-              enableAutoQuality: true, // 启用自动质量切换
-              autoLevelCapping: -1, // 不限制自动切换的最高质量
-
-              /* 网络请求优化 */
-              enableManifestPrefetch: true, // 预取manifest
-              enableLevelLoading: true, // 启用层级加载
-              enableSubtitleCues: false, // 禁用字幕提示减少开销
-
-              /* 重试机制 */
-              maxLoadingDelay: 0, // 不延迟加载
-              maxFragLookUpTolerance: 0.25, // 分片查找容差
-              maxBufferHoleTime: 0.5, // 最大缓冲空洞时间
-              highBufferWatchdogPeriod: 2, // 高缓冲区检测周期
-              nudgeOffset: 0.1, // 微调偏移
-              nudgeMaxRetry: 3, // 最大微调重试次数
+              /* 缓冲/内存相关 */
+              maxBufferLength: 30, // 前向缓冲最大 30s，过大容易导致高延迟
+              backBufferLength: 30, // 仅保留 30s 已播放内容，避免内存占用
+              maxBufferSize: 60 * 1000 * 1000, // 约 60MB，超出后触发清理
 
               /* 自定义loader */
               loader: blockAdEnabledRef.current
