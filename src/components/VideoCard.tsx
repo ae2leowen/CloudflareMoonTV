@@ -269,11 +269,11 @@ export default function VideoCard({
 
   return (
     <div
-      className='group relative w-full rounded-lg bg-transparent cursor-pointer transition-all duration-300 ease-in-out hover:scale-[1.05] hover:z-[500]'
+      className='group relative w-full rounded-lg bg-transparent cursor-pointer transition-all duration-500 ease-in-out hover:scale-[1.03] hover:z-[500] hover:drop-shadow-[0_0_12px_rgba(82,99,255,0.4)]'
       onClick={handleClick}
     >
       {/* 海报容器 */}
-      <div className='relative aspect-[2/3] overflow-hidden rounded-lg'>
+      <div className='relative aspect-[2/3] overflow-hidden rounded-lg ring-1 ring-gray-200/50 dark:ring-white/5 group-hover:ring-neon/40 dark:group-hover:ring-neon/50 transition-all duration-500'>
         {/* 骨架屏 */}
         {!isLoading && <ImagePlaceholder aspectRatio='aspect-[2/3]' />}
         {/* 图片 */}
@@ -295,7 +295,7 @@ export default function VideoCard({
             <PlayCircleIcon
               size={50}
               strokeWidth={0.8}
-              className='text-white fill-transparent transition-all duration-300 ease-out hover:fill-green-500 hover:scale-[1.1]'
+              className='text-white fill-transparent transition-all duration-300 ease-out hover:fill-neon hover:scale-[1.1]'
             />
           </div>
         )}
@@ -307,7 +307,7 @@ export default function VideoCard({
               <CheckCircle
                 onClick={handleDeleteRecord}
                 size={20}
-                className='text-white transition-all duration-300 ease-out hover:stroke-green-500 hover:scale-[1.1]'
+                className='text-white transition-all duration-300 ease-out hover:stroke-neon hover:scale-[1.1]'
               />
             )}
             {config.showHeart && (
@@ -326,13 +326,13 @@ export default function VideoCard({
 
         {/* 徽章 */}
         {config.showRating && rate && (
-          <div className='absolute top-2 right-2 bg-pink-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
+          <div className='absolute top-2 right-2 bg-neon text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(82,99,255,0.5)] transition-all duration-300 ease-out group-hover:scale-110'>
             {rate}
           </div>
         )}
 
         {actualEpisodes && actualEpisodes > 1 && (
-          <div className='absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
+          <div className='absolute top-2 right-2 bg-neon/90 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-[0_0_8px_rgba(82,99,255,0.4)] transition-all duration-300 ease-out group-hover:scale-110'>
             {currentEpisode
               ? `${currentEpisode}/${actualEpisodes}`
               : actualEpisodes}
@@ -348,7 +348,7 @@ export default function VideoCard({
             onClick={(e) => e.stopPropagation()}
             className='absolute top-2 left-2 opacity-0 -translate-x-2 transition-all duration-300 ease-in-out delay-100 group-hover:opacity-100 group-hover:translate-x-0'
           >
-            <div className='bg-green-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:bg-green-600 hover:scale-[1.1] transition-all duration-300 ease-out'>
+            <div className='bg-neon text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-[0_0_8px_rgba(82,99,255,0.4)] hover:bg-neon-light hover:scale-[1.1] transition-all duration-300 ease-out'>
               <Link size={16} />
             </div>
           </a>
@@ -357,9 +357,9 @@ export default function VideoCard({
 
       {/* 进度条 */}
       {config.showProgress && progress !== undefined && (
-        <div className='mt-1 h-1 w-full bg-gray-200 rounded-full overflow-hidden'>
+        <div className='mt-1 h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden'>
           <div
-            className='h-full bg-green-500 transition-all duration-500 ease-out'
+            className='h-full bg-neon transition-all duration-500 ease-out'
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -368,7 +368,7 @@ export default function VideoCard({
       {/* 标题与来源 */}
       <div className='mt-2 text-center'>
         <div className='relative'>
-          <span className='block text-sm font-semibold truncate text-gray-900 dark:text-gray-100 transition-colors duration-300 ease-in-out group-hover:text-green-600 dark:group-hover:text-green-400 peer'>
+          <span className='block text-sm font-semibold truncate text-gray-800 dark:text-gray-100 transition-colors duration-300 ease-in-out group-hover:text-cyan peer'>
             {actualTitle}
           </span>
           {/* 自定义 tooltip */}
@@ -379,7 +379,7 @@ export default function VideoCard({
         </div>
         {config.showSourceName && source_name && (
           <span className='block text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-green-500/60 group-hover:text-green-600 dark:group-hover:text-green-400'>
+            <span className='inline-block border rounded px-2 py-0.5 border-gray-300 dark:border-gray-600/60 transition-all duration-300 ease-in-out group-hover:border-neon/60 group-hover:text-cyan'>
               {source_name}
             </span>
           </span>
